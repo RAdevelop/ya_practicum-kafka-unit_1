@@ -90,7 +90,28 @@ networks:
 
 Для подключения UI к кластеру Кафки указали:
 - `KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS: "kafka-cb-1:9092"`
-- порта `9092` - потому что сервис UI так же находится внутри той же сети (в Докере), что и кластер Кафки. Поэтому UI может коммуницировать с кластером по "внутренниму каналу связи" (`PLAINTEXT://kafka-cb-1:9092`)
+- порт `9092` - потому что сервис UI так же находится внутри той же сети (в Докере), что и кластер Кафки. Поэтому UI может коммуницировать с кластером по "внутренниму каналу связи" (`PLAINTEXT://kafka-cb-1:9092`)
+
+### Развертывание кластера в Docker
+- выполните команду `docker-compose -f docker-compose-node-1.yml up -d`
+  - дождитесь завершения скачивания образов и создания контейнеров
+- в результате увидите о том, что контейнера созданы и запущены:
+```bash
+✔ Network unit_1_kafka-network     Created
+✔ Volume unit_1_kafka-cb-1-data    Created
+✔ Volume unit_1_kafka-cb-1-secrets Created
+✔ Container kafka-cb-1             Started
+✔ Container unit_1-kafka-ui-1      Started
+```
+- для полного пересоздания контейнеров стоит не забыть удалить сеть (network) и тома (volumes) на тот случай, чтобы уже записанные в тома данные не повлияли на пересборку:
+```bash 
+docker stop kafka-cb-1 unit_1-kafka-ui-1 \
+&& docker rm kafka-cb-1 unit_1-kafka-ui-1 \
+&& docker network rm unit_1_kafka-network \
+&& docker volume rm unit_1_kafka-cb-1-data unit_1_kafka-cb-1-secrets \
+&& docker-compose -f docker-compose-node-1.yml up -d
+```
+
 
 ### Проверьте состояние Kafka с помощью UI и команд
 - Теперь по адресу http://localhost:8080 у нас доступен интерфейс для управления Kafka - перейти по ссылке, увидеть:
