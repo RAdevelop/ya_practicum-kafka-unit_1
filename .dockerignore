@@ -1,0 +1,5 @@
+.env
+.gitignore
+.idea
+./lesson
+docker-compose.yml
