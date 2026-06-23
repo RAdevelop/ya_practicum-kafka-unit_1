@@ -59,6 +59,8 @@ services:
       DYNAMIC_CONFIG_ENABLED: 'true'
     networks:
       - kafka-network
+    depends_on:
+      - kafka-cb-1
 volumes:
   kafka-cb-1-data:
   kafka-cb-1-secrets:
