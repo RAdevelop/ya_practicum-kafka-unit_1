@@ -273,3 +273,236 @@ docker stop kafka-cb-1 kafka-cb-2 kafka-cb-3 unit_1-kafka-ui-1 \
 - Для каждой ноды выполните:
   - `docker exec -it kafka-cb-N sh` - (N: 1, 2, 3) выполнить команду в терминале вашего ПК, чтобы зайти в контейнер нашей ноды кластера
   - `kafka-topics --list --bootstrap-server kafka-cb-N:9092` - (N: 1, 2, 3) далее выполнить эту команду, находясь в командной оболочке контейнера - в результате будет выведена пустой список, так как топики ещё не созданы
+
+## Кластер из 6-и нод (3 брокера и 3 контроллера)
+- docker-compose-3c-3b.yml
+```yml
+services:
+    kafka-c-1:
+        image: confluentinc/cp-kafka:8.3.0
+        # Для роли контроллера "KAFKA_ADVERTISED_LISTENERS" должна отсутствовать, но в поставке cp-kafka, она все равно создается. Поэтому вот так удаляем ее.
+        entrypoint: [ "/bin/bash", "-c", "unset KAFKA_ADVERTISED_LISTENERS; exec /etc/confluent/docker/run" ]
+        container_name: kafka-c-1
+        hostname: kafka-c-1
+        environment:
+            CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+            KAFKA_NODE_ID: 1
+            KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-c-1:9093,2@kafka-c-2:9093,3@kafka-c-3:9093"
+            KAFKA_LISTENERS: "CONTROLLER://:9093"
+            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT"
+            KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+            KAFKA_PROCESS_ROLES: "controller"
+        volumes:
+            - kafka-c-1-data:/var/lib/kafka/data
+            - kafka-c-1-secrets:/etc/kafka/secrets
+        networks:
+            - kafka-network
+    kafka-c-2:
+        image: confluentinc/cp-kafka:8.3.0
+        # Для роли контроллера "KAFKA_ADVERTISED_LISTENERS" должна отсутствовать, но в поставке cp-kafka, она все равно создается. Поэтому вот так удаляем ее.
+        entrypoint: [ "/bin/bash", "-c", "unset KAFKA_ADVERTISED_LISTENERS; exec /etc/confluent/docker/run" ]
+        container_name: kafka-c-2
+        hostname: kafka-c-2
+        environment:
+            CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+            KAFKA_NODE_ID: 2
+            KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-c-1:9093,2@kafka-c-2:9093,3@kafka-c-3:9093"
+            KAFKA_LISTENERS: "CONTROLLER://:9093"
+            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT"
+            KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+            KAFKA_PROCESS_ROLES: "controller"
+        volumes:
+            - kafka-c-2-data:/var/lib/kafka/data
+            - kafka-c-2-secrets:/etc/kafka/secrets
+        networks:
+            - kafka-network
+    kafka-c-3:
+        image: confluentinc/cp-kafka:8.3.0
+        # Для роли контроллера "KAFKA_ADVERTISED_LISTENERS" должна отсутствовать, но в поставке cp-kafka, она все равно создается. Поэтому вот так удаляем ее.
+        entrypoint: [ "/bin/bash", "-c", "unset KAFKA_ADVERTISED_LISTENERS; exec /etc/confluent/docker/run" ]
+        container_name: kafka-c-3
+        hostname: kafka-c-3
+        environment:
+            CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+            KAFKA_NODE_ID: 3
+            KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-c-1:9093,2@kafka-c-2:9093,3@kafka-c-3:9093"
+            KAFKA_LISTENERS: "CONTROLLER://:9093"
+            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT"
+            KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+            KAFKA_PROCESS_ROLES: "controller"
+        volumes:
+            - kafka-c-3-data:/var/lib/kafka/data
+            - kafka-c-3-secrets:/etc/kafka/secrets
+        networks:
+            - kafka-network
+    kafka-b-1:
+        image: confluentinc/cp-kafka:8.3.0
+        container_name: kafka-b-1
+        hostname: kafka-b-1
+        environment:
+            CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+            KAFKA_NODE_ID: 4
+            KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-c-1:9093,2@kafka-c-2:9093,3@kafka-c-3:9093"
+            KAFKA_LISTENERS: "PLAINTEXT://:9092,EXTERNAL://:9094"
+            KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-b-1:9092,EXTERNAL://127.0.0.1:9094"
+            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+            KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+            KAFKA_PROCESS_ROLES: "broker"
+            KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+            KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+        volumes:
+            - kafka-b-1-data:/var/lib/kafka/data
+            - kafka-b-1-secrets:/etc/kafka/secrets
+        networks:
+            - kafka-network
+        ports:
+            - "19094:9094"
+    kafka-b-2:
+        image: confluentinc/cp-kafka:8.3.0
+        container_name: kafka-b-2
+        hostname: kafka-b-2
+        environment:
+            CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+            KAFKA_NODE_ID: 5
+            KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-c-1:9093,2@kafka-c-2:9093,3@kafka-c-3:9093"
+            KAFKA_LISTENERS: "PLAINTEXT://:9092,EXTERNAL://:9094"
+            KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-b-2:9092,EXTERNAL://127.0.0.1:9094"
+            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+            KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+            KAFKA_PROCESS_ROLES: "broker"
+            KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+            KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+        volumes:
+            - kafka-b-2-data:/var/lib/kafka/data
+            - kafka-b-2-secrets:/etc/kafka/secrets
+        networks:
+            - kafka-network
+        ports:
+            - "29094:9094"
+    kafka-b-3:
+        image: confluentinc/cp-kafka:8.3.0
+        container_name: kafka-b-3
+        hostname: kafka-b-3
+        environment:
+            CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+            KAFKA_NODE_ID: 6
+            KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-c-1:9093,2@kafka-c-2:9093,3@kafka-c-3:9093"
+            KAFKA_LISTENERS: "PLAINTEXT://:9092,EXTERNAL://:9094"
+            KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-b-3:9092,EXTERNAL://127.0.0.1:9094"
+            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+            KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+            KAFKA_PROCESS_ROLES: "broker"
+            KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+            KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+        volumes:
+            - kafka-b-3-data:/var/lib/kafka/data
+            - kafka-b-3-secrets:/etc/kafka/secrets
+        networks:
+            - kafka-network
+        ports:
+            - "39094:9094"
+    kafka-ui:
+        image: provectuslabs/kafka-ui:v0.7.2
+        ports:
+            - "8080:8080"
+        environment:
+            KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS: "kafka-b-1:9092,kafka-b-2:9092,kafka-b-3:9092"
+            KAFKA_CLUSTERS_0_NAME: "kafka-kraft"
+            DYNAMIC_CONFIG_ENABLED: 'true'
+        networks:
+            - kafka-network
+        depends_on:
+            - kafka-c-1
+            - kafka-c-2
+            - kafka-c-3
+            - kafka-b-1
+            - kafka-b-2
+            - kafka-b-3
+volumes:
+    kafka-c-1-data:
+    kafka-c-1-secrets:
+    kafka-c-2-data:
+    kafka-c-2-secrets:
+    kafka-c-3-data:
+    kafka-c-3-secrets:
+    kafka-b-1-data:
+    kafka-b-1-secrets:
+    kafka-b-2-data:
+    kafka-b-2-secrets:
+    kafka-b-3-data:
+    kafka-b-3-secrets:
+
+networks:
+    kafka-network:
+        driver: bridge
+```
+#### Отличия от кластера с одной нодой
+- Для каждого контроллера пришлось удалять переменную окружения ``, так как она для контроллеров не нужна, и вызывает ошибку при старте контейнера для контроллеров.
+  - При этом, в yml файле ее не прописывал для них. А при старте контейнера была ошибка о ее наличии, и что она не должна быть пустой. Если ее прописать в yml, то была ошибка о ее наличии.
+  - В итоге увидел в инспектировании контейнера, что она там есть - и пустая. 
+  - Документации на сайте ничего об этом явно не говорила (либо я плохо искал).
+  - **Тут уже воспользовался ИИ, чтобы найти вот такое решение:**
+  - `entrypoint: [ "/bin/bash", "-c", "unset KAFKA_ADVERTISED_LISTENERS; exec /etc/confluent/docker/run" ]`
+- создали 6 нод, чтобы был кворум 2n+1 - в нашем случае (n = 3) 3 ноды для контроллеров и 3 для брокеров
+- для каждой ноды указали свой уникальный `KAFKA_NODE_ID`
+- для каждой ноды указали список контроллеров для организации кворума `KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-c-1:9093,2@kafka-c-2:9093,3@kafka-c-3:9093"`
+- Для сервиса с UI указали весь список нод: `KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS: "kafka-b-1:9092,kafka-b-2:9092,kafka-b-3:9092"`
+- наружу из контейнеров мы пошарили порты:
+    - для удобства добавили `1` у номера порта, который будет снаружи смотреть на порт`9094`
+    - таким образом, для подключения снаружи надо будет использовать порты: `19094, 29094, 39094`
+```
+  - "19094:9094"
+  - "29094:9094"
+  - "39094:9094"
+```
+Для подключения UI к кластеру Кафки перечислили все три ноды:
+- `KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS: "kafka-b-1:9092,kafka-b-2:9092,kafka-b-3:9092"`
+- порт `9092` - потому что сервис UI так же находится внутри той же сети (в Докере), что и кластер Кафки. Поэтому UI может коммуницировать с кластером по "внутреннему каналу связи" (`PLAINTEXT://kafka-cb-N:9092`)
+
+#### Развертывание кластера в Docker
+- выполните команду `docker-compose -f docker-compose-3c-3b.yml up -d`
+    - дождитесь завершения скачивания образов и создания контейнеров
+- в результате увидите о том, что контейнера созданы и запущены:
+```bash
+✔ Network unit_1_kafka-network
+✔ Volume unit_1_kafka-c-1-data
+✔ Volume unit_1_kafka-b-1-data
+✔ Volume unit_1_kafka-c-1-secrets
+✔ Volume unit_1_kafka-c-2-data
+✔ Volume unit_1_kafka-c-2-secrets
+✔ Volume unit_1_kafka-c-3-data
+✔ Volume unit_1_kafka-c-3-secrets
+✔ Volume unit_1_kafka-b-2-data
+✔ Volume unit_1_kafka-b-1-secrets
+✔ Volume unit_1_kafka-b-2-secrets
+✔ Volume unit_1_kafka-b-3-data
+✔ Volume unit_1_kafka-b-3-secrets
+✔ Container kafka-b-3
+✔ Container kafka-b-1
+✔ Container kafka-c-1
+✔ Container kafka-c-2
+✔ Container kafka-b-2
+✔ Container kafka-c-3
+✔ Container unit_1-kafka-ui-1
+```
+- для полного пересоздания контейнеров стоит не забыть удалить сеть (network) и тома (volumes) на тот случай, чтобы уже записанные в тома данные не повлияли на пересборку:
+```bash 
+docker stop kafka-c-1 kafka-c-2 kafka-c-3 kafka-b-1 kafka-b-2 kafka-b-3 unit_1-kafka-ui-1 \
+&& docker rm kafka-c-1 kafka-c-2 kafka-c-3 kafka-b-1 kafka-b-2 kafka-b-3 unit_1-kafka-ui-1 \
+&& docker network rm unit_1_kafka-network \
+&& docker volume rm unit_1_kafka-c-1-data unit_1_kafka-c-1-secrets unit_1_kafka-c-2-data unit_1_kafka-c-2-secrets unit_1_kafka-c-3-data unit_1_kafka-c-3-secrets unit_1_kafka-b-1-data unit_1_kafka-b-1-secrets unit_1_kafka-b-2-data unit_1_kafka-b-2-secrets unit_1_kafka-b-3-data unit_1_kafka-b-3-secrets \
+&& docker-compose -f docker-compose-3c-3b.yml up -d
+```
+
+#### Проверьте состояние Kafka с помощью UI и команд
+- Теперь по адресу http://localhost:8080 у нас доступен интерфейс для управления Kafka - перейти по ссылке, увидеть:
+    - `kafka-kraft` - как имя Кластера в колонке "Cluster name" (и он имеет статус Online)
+    - В разделе [Brokers](http://localhost:8080/ui/clusters/kafka-kraft/brokers):
+        - `Broker Count` - 3 брокера
+        - `Active Controller` - до 6 активный контроллер (вероятно kafka-ui так мониторит)
+- Для каждой ноды выполните:
+    - `docker exec -it kafka-b-N sh` - (N: 1, 2, 3) выполнить команду в терминале вашего ПК, чтобы зайти в контейнер нашей ноды кластера
+    - `kafka-topics --list --bootstrap-server kafka-b-N:9092` - (N: 1, 2, 3) далее выполнить эту команду, находясь в командной оболочке контейнера - в результате будет выведена пустой список, так как топики ещё не созданы
