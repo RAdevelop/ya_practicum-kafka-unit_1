@@ -35,13 +35,16 @@ func NewProducer[T any](config config.Config) (*Producer[T], error) {
 		"retries":            config.Producer.Retries,           // Количество повторных попыток
 		"retry.backoff.ms":   config.Producer.RetryBackoffMs,    // Пауза между попытками
 		"enable.idempotence": config.Producer.EnableIdempotence, // Идемпотентность (защита от дублей)
+		// Устанавливаем таймауты для подключения
+		"socket.connection.setup.timeout.ms": config.Producer.SocketConnectionSetupTimeoutMs,
+		"socket.timeout.ms":                  config.Producer.SocketTimeoutMs,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	// Проверяем, что можем получить метаданные
-	_, err = producer.GetMetadata(nil, false, 10000) // 10 секунд таймаут
+	_, err = producer.GetMetadata(nil, false, config.Producer.SocketTimeoutMs)
 	if err != nil {
 		producer.Close()
 		return nil, fmt.Errorf("failed to connect to Kafka: %w", err)

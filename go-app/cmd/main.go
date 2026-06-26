@@ -21,7 +21,7 @@ func main() {
 
 	var cfg config.Config
 	cfg.Load(".env")
-	fmt.Printf("%#v", cfg)
+	fmt.Printf("%#v", cfg.Producer)
 	fmt.Println("")
 
 	publisher, err := producer.NewProducer[models.Message](cfg)
@@ -30,6 +30,8 @@ func main() {
 		return
 	}
 	defer publisher.Close()
+
+	logger.Info("Продюсер подключен к брокерам")
 
 	return
 
