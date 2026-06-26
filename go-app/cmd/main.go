@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/config"
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/logger"
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/models"
@@ -19,19 +17,20 @@ const (
 
 func main() {
 
+	logging := logger.New()
+
 	var cfg config.Config
 	cfg.Load(".env")
-	fmt.Printf("%#v", cfg.Producer)
-	fmt.Println("")
+	logging.Info("%#v", cfg.Producer)
 
 	publisher, err := producer.NewProducer[models.Message](cfg)
 	if err != nil {
-		logger.Error("Ошибка создания продюсера: ", err)
+		logging.Error("Ошибка создания продюсера: %v", err)
 		return
 	}
 	defer publisher.Close()
 
-	logger.Info("Продюсер подключен к брокерам")
+	logging.Info("Продюсер подключен к брокерам")
 
 	return
 
@@ -60,24 +59,24 @@ func main() {
 
 			singleConsumer, err := consumer.NewSingleConsumer(brokers, singleGroup, topic)
 			if err != nil {
-				logger.Error("NewSingleConsumer ошибка", err)
+				logging.Error("NewSingleConsumer ошибка", err)
 				return
 			}
 
 			defer func() {
 				if errClose := singleConsumer.Close(); errClose != nil {
-					logger.Error("CRITICAL: Failed to close consumer gracefully: %v", errClose)
+					logging.Error("CRITICAL: Failed to close consumer gracefully: %v", errClose)
 				}
 			}()
 
 			batchConsumer, err := consumer.NewBatchConsumer(brokers, batchGroup, topic)
 			if err != nil {
-				logger.Error("NewBatchConsumer ошибка", err)
+				logging.Error("NewBatchConsumer ошибка", err)
 				return
 			}
 			defer func() {
 				if errClose := batchConsumer.Close(); errClose != nil {
-					logger.Error("CRITICAL: Failed to close consumer gracefully: %v", errClose)
+					logging.Error("CRITICAL: Failed to close consumer gracefully: %v", errClose)
 				}
 			}()
 
@@ -98,10 +97,10 @@ func main() {
 			signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 			<-sigChan
 
-			logger.Info("Получен сигнал остановки...")
+			logging.Info("Получен сигнал остановки...")
 			cancel()
 			wg.Wait()
-			logger.Success("Приложение завершено")*/
+			logging.Success("Приложение завершено")*/
 }
 
 /*
@@ -114,7 +113,7 @@ func sendMessage(p *producer.Producer) {
 			Ts:      time.Now().Unix(),
 		}
 		if err := p.Send(topic, msg); err != nil {
-			logger.Error("Ошибка отправки: %v", err)
+			logging.Error("Ошибка отправки: %v", err)
 		}
 		// TODO для отладки и наблюдения за сообщениями в консоли
 		time.Sleep(1 * time.Second)

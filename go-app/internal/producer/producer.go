@@ -11,14 +11,17 @@ import (
 type Producer[T any] struct {
 	producer *kafka.Producer
 	config   config.Config
+	//TODO внедрить сериализитор?! serializer Serializer
 }
 
-// SendMessage - отправка сообщений в указаный топик
+// SendMessage - отправка сообщений в указаный топик (TODO или передать msg []*T) или вообще через каналы общаться?
 func (p *Producer[T]) SendMessage(topic string, msg *T) error {
+	var m []*T
+	fmt.Println(m) //TODO del
 	return nil
 }
 
-// Close - закрытие продюсера
+// Close - закрытие продюсера по необходимости для экономии ресурсов
 func (p *Producer[T]) Close() {
 	// Ждём доставки всех сообщений перед закрытием
 	p.producer.Flush(p.config.Producer.FlushTimeoutMs)
