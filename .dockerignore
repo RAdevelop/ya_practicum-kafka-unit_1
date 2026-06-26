@@ -3,3 +3,5 @@
 .idea
 ./lesson
 docker-compose.yml
+go-app
+docker
