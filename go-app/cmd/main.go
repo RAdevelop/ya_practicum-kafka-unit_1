@@ -1,14 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/config"
+	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/consumer"
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/logger"
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/models"
-	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/producer"
 )
 
 // TODO hardcode - вынести в конфиг?
@@ -20,45 +24,103 @@ const (
 
 func main() {
 
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+
 	logThis := logger.New()
 
 	var cfg config.Config
 	cfg.Load(".env")
 	// TODO del
-	//logThis.Info("%#v", cfg.Producer)
+	//logThis.Info("cfg.Consumer.BootstrapServers: %#v", cfg.Consumer.BootstrapServers)
+	//return //TODO del
+	/*
+		// создаем продюсера
+		publisher, err := producer.NewProducer[models.Message](cfg, logThis, json.Marshal)
+		if err != nil {
+			logThis.Error("Error connecting the producer: %v", err)
+			return
+		}
+		defer publisher.Close()
+		logThis.Info("Producer has been connected to the brokers")
 
-	// создаем продюсера
-	publisher, err := producer.NewProducer[models.Message](cfg, logThis, json.Marshal)
+		countMsg := 1
+		// Канал передачи сообщений между генератором и отправщиком
+		produceChannel := make(chan *models.Message)
+
+		// генерация сообщений:
+		go generateMessage(produceChannel, countMsg)
+
+		// отправка сообщений:
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for message := range produceChannel {
+				errSending := publisher.SendMessage(topic, message)
+				if errSending != nil {
+					logThis.Error("Error sending the message (%v):\n%v", errSending, message)
+				} else {
+					logThis.Info("Message has been sent:\n%v", message)
+				}
+			}
+		}()
+
+		wg.Wait()
+	*/
+
+	// создаем консьюмера
+	subscriberSingleGroup, err := consumer.NewConsumer[models.Message](cfg, logThis, json.Unmarshal, singleGroup, 1)
+
 	if err != nil {
-		logThis.Error("Ошибка создания продюсера: %v", err)
+		logThis.Error("Error on consumer initialization: %v", err)
 		return
 	}
-	defer publisher.Close()
-	logThis.Info("Продюсер подключен к брокерам")
+	defer func() {
+		err = subscriberSingleGroup.Close()
+		if err != nil {
+			logThis.Error("Error on close consumer: %v", err)
+		}
+	}()
+	// подключаемся к топику
+	err = subscriberSingleGroup.SubscribeTopic(topic)
+	if err != nil {
+		logThis.Error("Error on subscribe topic: %v", err)
+	}
 
-	countMsg := 1
-	// Канал передачи сообщений между генератором и отправщиком
-	produceChannel := make(chan *models.Message)
+	logThis.Info("Subscribed to topic: %s", topic)
 
-	// генерация сообщений:
-	go generateMessage(produceChannel, countMsg)
+	/*
+		processBatchCb - callback функция для обработки сообщений в процессе их получения из Кафки
+	*/
+	processBatchCb := func(ctx context.Context, messages []*models.Message) error {
+		/*
+			обработка сообщений, полученных из Кафка, например:
+			- сохранние данных в БД
+			- отправка в какой-нибудь сервисы
+			- и тп
+		*/
+		//пока просто выведем сообщения:
+		logThis.Info("Processing batch:\n%v", messages)
 
-	// отправка сообщений:
+		return nil
+	}
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for message := range produceChannel {
-			errSending := publisher.SendMessage(topic, message)
-			if errSending != nil {
-				logThis.Error("Ошибка отправки сообщения (%v):\n%v", errSending, message)
-			} else {
-				logThis.Info("Сообщение отправлено:\n%v", message)
-			}
-		}
+		subscriberSingleGroup.Consume(ctx, processBatchCb)
 	}()
 
+	//Обработка прерывания рабоыт приложения, например, по CTR + c:
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+
+	logThis.Info("Interrupt signal received")
+	ctxCancel()
 	wg.Wait()
+	logThis.Info("App is closed")
 
 	return
 

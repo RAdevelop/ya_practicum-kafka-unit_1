@@ -27,10 +27,10 @@ type producer struct {
 }
 
 type consumer struct {
-	BootstrapServers string `env:"bootstrap.servers" envDefault:"kafka-b-1:9092"`
-	GroupId          string `env:"group.id" envDefault:""`
-	AutoOffsetReset  string `env:"auto.offset.reset" envDefault:"earliest"`
-	EnableAutoCommit bool   `env:"enable.auto.commit" envDefault:"false"`
-	FetchMinBytes    int    `env:"fetch.min.bytes" envDefault:"1"`
-	FetchMaxWaitMs   int    `env:"fetch.max.wait.ms" envDefault:"100"`
+	BootstrapServers string `env:"BOOTSTRAP_SERVERS" envDefault:"kafka-b-1:9092"`
+	GroupId          string `env:"GROUP_ID" envDefault:""`
+	AutoOffsetReset  string `env:"AUTO_OFFSET_RESET" envDefault:"earliest"`
+	EnableAutoCommit bool   `env:"ENABLE_AUTO_COMMIT" envDefault:"false"`
+	FetchMinBytes    int    `env:"FETCH_MIN_BYTES" envDefault:"1"`
+	FetchWaitMaxMs   int    `env:"FETCH_WAIT_MAX_MS" envDefault:"100"`
 }
