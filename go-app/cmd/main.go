@@ -1,6 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"sync"
+	"time"
+
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/config"
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/logger"
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/models"
@@ -9,7 +13,6 @@ import (
 
 // TODO hardcode - вынести в конфиг?
 const (
-	brokers     = "kafka-b-1:9092,kafka-b-2:9092,kafka-b-3:9092" // брокеры
 	topic       = "topic_unit_1"
 	singleGroup = "single-group" // TODO hardcode - вынести в конфиг?
 	batchGroup  = "batch-group"  // TODO hardcode - вынести в конфиг?
@@ -17,20 +20,45 @@ const (
 
 func main() {
 
-	logging := logger.New()
+	logThis := logger.New()
 
 	var cfg config.Config
 	cfg.Load(".env")
-	logging.Info("%#v", cfg.Producer)
+	// TODO del
+	//logThis.Info("%#v", cfg.Producer)
 
-	publisher, err := producer.NewProducer[models.Message](cfg)
+	// создаем продюсера
+	publisher, err := producer.NewProducer[models.Message](cfg, logThis, json.Marshal)
 	if err != nil {
-		logging.Error("Ошибка создания продюсера: %v", err)
+		logThis.Error("Ошибка создания продюсера: %v", err)
 		return
 	}
 	defer publisher.Close()
+	logThis.Info("Продюсер подключен к брокерам")
 
-	logging.Info("Продюсер подключен к брокерам")
+	countMsg := 1
+	// Канал передачи сообщений между генератором и отправщиком
+	produceChannel := make(chan *models.Message)
+
+	// генерация сообщений:
+	go generateMessage(produceChannel, countMsg)
+
+	// отправка сообщений:
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for message := range produceChannel {
+			errSending := publisher.SendMessage(topic, message)
+			if errSending != nil {
+				logThis.Error("Ошибка отправки сообщения (%v):\n%v", errSending, message)
+			} else {
+				logThis.Info("Сообщение отправлено:\n%v", message)
+			}
+		}
+	}()
+
+	wg.Wait()
 
 	return
 
@@ -103,20 +131,16 @@ func main() {
 			logging.Success("Приложение завершено")*/
 }
 
-/*
-// TODO сделать метод, который просто вернет (генерация) slice сообщений
-func sendMessage(p *producer.Producer) {
-	for i := 0; i < 100; i++ {
+// generateMessage - генерируем сообщения в количестве countMsg
+func generateMessage(produceChannel chan<- *models.Message, countMsg int) {
+	defer close(produceChannel)
+
+	for i := 0; i < countMsg; i++ {
 		msg := &models.Message{
 			ID:      i,
 			Payload: "Hello from producer",
-			Ts:      time.Now().Unix(),
+			Ts:      time.Now().UnixNano(),
 		}
-		if err := p.Send(topic, msg); err != nil {
-			logging.Error("Ошибка отправки: %v", err)
-		}
-		// TODO для отладки и наблюдения за сообщениями в консоли
-		time.Sleep(1 * time.Second)
+		produceChannel <- msg
 	}
 }
-*/

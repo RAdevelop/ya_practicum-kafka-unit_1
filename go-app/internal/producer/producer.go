@@ -4,32 +4,20 @@ import (
 	"fmt"
 
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/config"
+	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/logger"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 // Producer - продюсер для отправки сообщений в Kafka
 type Producer[T any] struct {
-	producer *kafka.Producer
-	config   config.Config
-	//TODO внедрить сериализитор?! serializer Serializer
-}
-
-// SendMessage - отправка сообщений в указаный топик (TODO или передать msg []*T) или вообще через каналы общаться?
-func (p *Producer[T]) SendMessage(topic string, msg *T) error {
-	var m []*T
-	fmt.Println(m) //TODO del
-	return nil
-}
-
-// Close - закрытие продюсера по необходимости для экономии ресурсов
-func (p *Producer[T]) Close() {
-	// Ждём доставки всех сообщений перед закрытием
-	p.producer.Flush(p.config.Producer.FlushTimeoutMs)
-	p.producer.Close()
+	producer  *kafka.Producer
+	config    config.Config
+	logger    *logger.Logger
+	serialize func(T any) ([]byte, error)
 }
 
 // NewProducer - конструтор для продюсера
-func NewProducer[T any](config config.Config) (*Producer[T], error) {
+func NewProducer[T any](config config.Config, logger *logger.Logger, serializer func(T any) ([]byte, error)) (*Producer[T], error) {
 
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": config.Producer.BootstrapServers,
@@ -38,50 +26,57 @@ func NewProducer[T any](config config.Config) (*Producer[T], error) {
 		"retries":            config.Producer.Retries,           // Количество повторных попыток
 		"retry.backoff.ms":   config.Producer.RetryBackoffMs,    // Пауза между попытками
 		"enable.idempotence": config.Producer.EnableIdempotence, // Идемпотентность (защита от дублей)
-		// Устанавливаем таймауты для подключения
+		//Определяет, сколько времени клиент (продюсер или консьюмер) будет ждать установки TCP-соединения с брокером:
 		"socket.connection.setup.timeout.ms": config.Producer.SocketConnectionSetupTimeoutMs,
-		"socket.timeout.ms":                  config.Producer.SocketTimeoutMs,
+		// Определяет максимальное время ожидания ответа на уже отправленный запрос по уже установленному соединению:
+		"socket.timeout.ms": config.Producer.SocketTimeoutMs,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Проверяем, что можем получить метаданные
-	_, err = producer.GetMetadata(nil, false, config.Producer.SocketTimeoutMs)
-	if err != nil {
-		producer.Close()
-		return nil, fmt.Errorf("failed to connect to Kafka: %w", err)
-	}
-
-	return &Producer[T]{producer: producer, config: config}, nil
+	return &Producer[T]{
+		producer:  producer,
+		config:    config,
+		logger:    logger,
+		serialize: serializer,
+	}, nil
 }
 
-/*
-// Send отправляет сообщение в топик (асинхронно)
-func _Send(topic string, msg *models.Message) error {
+// SendMessage - отправка сообщения в указаный топик
+func (p *Producer[T]) SendMessage(topic string, msg *T) (err error) {
 
-	messageForProducer, err := json.Marshal(msg)
+	messageForProducer, err := p.serialize(msg)
 	if err != nil {
 		return err
 	}
+	p.logger.Info("Продюсер создал сериализованное сообщение: %v", messageForProducer)
+
+	deliveryChan := make(chan kafka.Event, 1)
 
 	// Асинхронная отправка
-	err = pr.p.Produce(&kafka.Message{
+	err = p.producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Value:          messageForProducer,
-	}, nil)
+	}, deliveryChan)
 
 	if err != nil {
 		return err
 	}
 
-	logger.Info("Отправлено: %s" + msg.String())
-	return nil
+	// Ждём подтверждения отправки сообщения
+	eventFromProducer := <-deliveryChan
+	m := eventFromProducer.(*kafka.Message)
+	if m.TopicPartition.Error != nil {
+		err = fmt.Errorf("delivery failed: %w", m.TopicPartition.Error)
+	}
+
+	return err
 }
 
-// Close закрывает продюсер
-func _Close() {
-	pr.p.Flush(15 * 1000) // Ждём доставки всех сообщений
-	pr.p.Close()
+// Close - закрытие продюсера по необходимости для экономии ресурсов
+func (p *Producer[T]) Close() {
+	// Ждём доставки всех сообщений перед закрытием в течение милисекунд: FlushTimeoutMs
+	p.producer.Flush(p.config.Producer.FlushTimeoutMs)
+	p.producer.Close()
 }
-*/

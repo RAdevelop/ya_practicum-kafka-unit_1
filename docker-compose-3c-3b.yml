@@ -18,6 +18,7 @@ services:
       - kafka-c-1-secrets:/etc/kafka/secrets
     networks:
       - kafka-network
+    restart: unless-stopped
   kafka-c-2:
     image: confluentinc/cp-kafka:8.3.0
     # Для роли контроллера "KAFKA_ADVERTISED_LISTENERS" должна отсутствовать, но в поставке cp-kafka, она все равно создается. Поэтому вот так удаляем ее.
@@ -37,6 +38,7 @@ services:
       - kafka-c-2-secrets:/etc/kafka/secrets
     networks:
       - kafka-network
+    restart: unless-stopped
   kafka-c-3:
     image: confluentinc/cp-kafka:8.3.0
     # Для роли контроллера "KAFKA_ADVERTISED_LISTENERS" должна отсутствовать, но в поставке cp-kafka, она все равно создается. Поэтому вот так удаляем ее.
@@ -56,6 +58,7 @@ services:
       - kafka-c-3-secrets:/etc/kafka/secrets
     networks:
       - kafka-network
+    restart: unless-stopped
   kafka-b-1:
     image: confluentinc/cp-kafka:8.3.0
     container_name: kafka-b-1
@@ -77,6 +80,7 @@ services:
       - kafka-b-1-secrets:/etc/kafka/secrets
     networks:
       - kafka-network
+    restart: unless-stopped
     ports:
       - "19094:9094"
   kafka-b-2:
@@ -100,6 +104,7 @@ services:
       - kafka-b-2-secrets:/etc/kafka/secrets
     networks:
       - kafka-network
+    restart: unless-stopped
     ports:
       - "29094:9094"
   kafka-b-3:
@@ -123,6 +128,7 @@ services:
       - kafka-b-3-secrets:/etc/kafka/secrets
     networks:
       - kafka-network
+    restart: unless-stopped
     ports:
       - "39094:9094"
   kafka-ui:
@@ -135,6 +141,7 @@ services:
       DYNAMIC_CONFIG_ENABLED: 'true'
     networks:
       - kafka-network
+    restart: unless-stopped
     depends_on:
       - kafka-c-1
       - kafka-c-2
