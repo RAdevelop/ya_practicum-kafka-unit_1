@@ -50,35 +50,22 @@ func main() {
 	// генерация сообщений:
 	go generateMessage(produceChannel, countMsg)
 
-	// отправка сообщений:
-
 	wg.Add(3)
+
+	// отправка сообщений:
 	go func() {
 		defer wg.Done()
-		for message := range produceChannel {
-			errSending := publisher.SendMessage(topic, message)
-			if errSending != nil {
-				logProducer.Error("Error sending the message (%v):\n%v", errSending, message)
-			} else {
-				logProducer.Info("Message has been sent:\n%v", message)
-			}
-		}
+		produceMessage(topic, publisher, logProducer, produceChannel)
 	}()
 
 	// создаем консьюмера для чтения сообщения по 10  шт
-	loggerButchGroup := logger.New("ConsumerButchGroup")
-	subscriberButchGroup, err := consumer.NewConsumer[models.Message](cfg, loggerButchGroup, json.Unmarshal, batchGroup, 10)
+	subscriberButchGroup, loggerButchGroup, deferCloseFuncSubscriberButchGroup, err := consumerCreate("ConsumerButchGroup", cfg, batchGroup, 10)
 	if err != nil {
 		loggerButchGroup.Error("Error on Consumer initialization: %v", err)
 		return
 	}
+	defer deferCloseFuncSubscriberButchGroup()
 
-	defer func() {
-		err = subscriberButchGroup.Close()
-		if err != nil {
-			loggerButchGroup.Error("Error on close: %v", err)
-		}
-	}()
 	// подключаемся к топику
 	err = subscriberButchGroup.SubscribeTopic(topic)
 	if err != nil {
@@ -87,57 +74,19 @@ func main() {
 	loggerButchGroup.Info("Subscribed to a topic: %s", topic)
 
 	// создаем консьюмера для чтения сообщения по одной шт
-	loggerSingleGroup := logger.New("ConsumerSingleGroup")
-	subscriberSingleGroup, err := consumer.NewConsumer[models.Message](cfg, loggerSingleGroup, json.Unmarshal, singleGroup, 1)
-
+	subscriberSingleGroup, loggerSingleGroup, deferCloseFuncSubscriberSingleGroup, err := consumerCreate("ConsumerSingleGroup", cfg, singleGroup, 1)
 	if err != nil {
 		loggerSingleGroup.Error("Error on initialization: %v", err)
 		return
 	}
-	defer func() {
-		err = subscriberSingleGroup.Close()
-		if err != nil {
-			loggerSingleGroup.Error("Error on close: %v", err)
-		}
-	}()
+	defer deferCloseFuncSubscriberSingleGroup()
+
 	// подключаемся к топику
 	err = subscriberSingleGroup.SubscribeTopic(topic)
 	if err != nil {
 		loggerSingleGroup.Error("Error on subscribe to a topic: %v", err)
 	}
-
 	loggerSingleGroup.Info("Subscribed to a topic: %s", topic)
-
-	/*
-		processBatchCb - callback функция для обработки сообщений в процессе их получения из Кафки
-	*/
-	processBatchCbSingleGroup := func(ctx context.Context, messages []*models.Message) error {
-		/*
-			обработка сообщений, полученных из Кафка, например:
-			- сохранние данных в БД
-			- отправка в какой-нибудь сервисы
-			- и тп
-		*/
-		//пока просто выведем сообщения:
-		loggerSingleGroup.Info("Processing batch:\n%v", messages)
-
-		return nil
-	}
-	/*
-		processBatchCb - callback функция для обработки сообщений в процессе их получения из Кафки
-	*/
-	processBatchCbButchGroup := func(ctx context.Context, messages []*models.Message) error {
-		/*
-			обработка сообщений, полученных из Кафка, например:
-			- сохранние данных в БД
-			- отправка в какой-нибудь сервисы
-			- и тп
-		*/
-		//пока просто выведем сообщения:
-		loggerButchGroup.Info("Processing batch:\n%v", messages)
-
-		return nil
-	}
 
 	go func() {
 		defer wg.Done()
@@ -160,6 +109,18 @@ func main() {
 	logThis.Info("App is closed")
 }
 
+// produceMessage - отпрака сообщений в Кафка
+func produceMessage(topic string, publisher *producer.Producer[models.Message], logger *logger.Logger, produceChannel <-chan *models.Message) {
+	for message := range produceChannel {
+		err := publisher.SendMessage(topic, message)
+		if err != nil {
+			logger.Error("Error sending the message (%v):\n%v", err, message)
+		} else {
+			logger.Info("Message has been sent:\n%v", message)
+		}
+	}
+}
+
 // generateMessage - генерируем сообщения в количестве countMsg
 func generateMessage(produceChannel chan<- *models.Message, countMsg int) {
 	defer close(produceChannel)
@@ -172,4 +133,51 @@ func generateMessage(produceChannel chan<- *models.Message, countMsg int) {
 		}
 		produceChannel <- msg
 	}
+}
+
+func consumerCreate[T models.Message](loggerPrefix string, config config.Config, groupID string, batchSize int) (subscriber *consumer.Consumer[T], logMe *logger.Logger, deferCloseFunc func(), err error) {
+
+	logMe = logger.New(loggerPrefix)
+	subscriber, err = consumer.NewConsumer[T](config, logMe, json.Unmarshal, groupID, batchSize)
+
+	if err != nil {
+		return nil, logMe, nil, err
+	}
+
+	deferCloseFunc = func() {
+		err = subscriber.Close()
+		if err != nil {
+			logMe.Error("Error on close: %v", err)
+		}
+	}
+
+	return subscriber, logMe, deferCloseFunc, nil
+}
+
+// processBatchCbSingleGroup - callback функция для обработки сообщений в процессе их получения из Кафки
+func processBatchCbSingleGroup(ctx context.Context, logger *logger.Logger, messages []*models.Message) error {
+	/*
+		обработка сообщений, полученных из Кафка, например:
+		- сохранние данных в БД
+		- отправка в какой-нибудь сервисы
+		- и тп
+	*/
+	//пока просто выведем сообщения:
+	logger.Info("Processing batch:\n%v", messages)
+
+	return nil
+}
+
+// processBatchCbButchGroup - callback функция для обработки сообщений в процессе их получения из Кафки
+func processBatchCbButchGroup(ctx context.Context, logger *logger.Logger, messages []*models.Message) error {
+	/*
+		обработка сообщений, полученных из Кафка, например:
+		- сохранние данных в БД
+		- отправка в какой-нибудь сервисы
+		- и тп
+	*/
+	//пока просто выведем сообщения:
+	logger.Info("Processing batch:\n%v", messages)
+
+	return nil
 }

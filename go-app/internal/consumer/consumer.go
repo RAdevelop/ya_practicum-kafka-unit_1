@@ -80,7 +80,7 @@ Consume - считываем сообщения из Кафки
 ctx - для возможности отмены выполнения
 processBatchCb - обработка сообщений по мере их чтения
 */
-func (c *Consumer[T]) Consume(ctx context.Context, processBatchCb func(context.Context, []*T) error) {
+func (c *Consumer[T]) Consume(ctx context.Context, processBatchCb func(context.Context, *logger.Logger, []*T) error) {
 	baseSleepInterval := 1_000 * time.Millisecond
 	maxSleepInterval := baseSleepInterval * 10
 	sleepInterval := baseSleepInterval
@@ -160,7 +160,7 @@ func (c *Consumer[T]) Consume(ctx context.Context, processBatchCb func(context.C
 			if len(c.batch) > 0 {
 
 				if processBatchCb != nil {
-					err = processBatchCb(ctx, c.batch)
+					err = processBatchCb(ctx, c.logger, c.batch)
 					if err != nil {
 						c.logger.Error("processBatchCb error: %v", err)
 						/*

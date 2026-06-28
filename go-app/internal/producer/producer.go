@@ -50,7 +50,7 @@ func (p *Producer[T]) SendMessage(topic string, msg *T) (err error) {
 	if err != nil {
 		return err
 	}
-	p.logger.Info("Продюсер создал сериализованное сообщение: %v", messageForProducer)
+	p.logger.Info("The producer created a serialized message: %v", messageForProducer)
 
 	deliveryChan := make(chan kafka.Event, 1)
 
