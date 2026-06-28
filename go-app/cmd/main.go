@@ -13,6 +13,7 @@ import (
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/consumer"
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/logger"
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/models"
+	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/producer"
 )
 
 // TODO hardcode - вынести в конфиг?
@@ -27,73 +28,91 @@ func main() {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
 
-	logThis := logger.New()
+	logThis := logger.New("InMainApp")
 
 	var cfg config.Config
 	cfg.Load(".env")
-	// TODO del
-	//logThis.Info("cfg.Consumer.BootstrapServers: %#v", cfg.Consumer.BootstrapServers)
-	//return //TODO del
-	/*
-		// создаем продюсера
-		publisher, err := producer.NewProducer[models.Message](cfg, logThis, json.Marshal)
-		if err != nil {
-			logThis.Error("Error connecting the producer: %v", err)
-			return
-		}
-		defer publisher.Close()
-		logThis.Info("Producer has been connected to the brokers")
+	var wg sync.WaitGroup
 
-		countMsg := 1
-		// Канал передачи сообщений между генератором и отправщиком
-		produceChannel := make(chan *models.Message)
+	// создаем продюсера
+	logProducer := logger.New("Producer")
+	publisher, err := producer.NewProducer[models.Message](cfg, logProducer, json.Marshal)
+	if err != nil {
+		logProducer.Error("Error connecting the producer: %v", err)
+		return
+	}
+	defer publisher.Close()
+	logProducer.Info("Producer has been connected to the brokers")
 
-		// генерация сообщений:
-		go generateMessage(produceChannel, countMsg)
+	countMsg := 100
+	// Канал передачи сообщений между генератором и отправщиком
+	produceChannel := make(chan *models.Message, countMsg)
 
-		// отправка сообщений:
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for message := range produceChannel {
-				errSending := publisher.SendMessage(topic, message)
-				if errSending != nil {
-					logThis.Error("Error sending the message (%v):\n%v", errSending, message)
-				} else {
-					logThis.Info("Message has been sent:\n%v", message)
-				}
+	// генерация сообщений:
+	go generateMessage(produceChannel, countMsg)
+
+	// отправка сообщений:
+
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		for message := range produceChannel {
+			errSending := publisher.SendMessage(topic, message)
+			if errSending != nil {
+				logProducer.Error("Error sending the message (%v):\n%v", errSending, message)
+			} else {
+				logProducer.Info("Message has been sent:\n%v", message)
 			}
-		}()
+		}
+	}()
 
-		wg.Wait()
-	*/
+	// создаем консьюмера для чтения сообщения по 10  шт
+	loggerButchGroup := logger.New("ConsumerButchGroup")
+	subscriberButchGroup, err := consumer.NewConsumer[models.Message](cfg, loggerButchGroup, json.Unmarshal, batchGroup, 10)
+	if err != nil {
+		loggerButchGroup.Error("Error on Consumer initialization: %v", err)
+		return
+	}
 
-	// создаем консьюмера
-	subscriberSingleGroup, err := consumer.NewConsumer[models.Message](cfg, logThis, json.Unmarshal, singleGroup, 1)
+	defer func() {
+		err = subscriberButchGroup.Close()
+		if err != nil {
+			loggerButchGroup.Error("Error on close: %v", err)
+		}
+	}()
+	// подключаемся к топику
+	err = subscriberButchGroup.SubscribeTopic(topic)
+	if err != nil {
+		loggerButchGroup.Error("Error on subscribe to a topic: %v", err)
+	}
+	loggerButchGroup.Info("Subscribed to a topic: %s", topic)
+
+	// создаем консьюмера для чтения сообщения по одной шт
+	loggerSingleGroup := logger.New("ConsumerSingleGroup")
+	subscriberSingleGroup, err := consumer.NewConsumer[models.Message](cfg, loggerSingleGroup, json.Unmarshal, singleGroup, 1)
 
 	if err != nil {
-		logThis.Error("Error on consumer initialization: %v", err)
+		loggerSingleGroup.Error("Error on initialization: %v", err)
 		return
 	}
 	defer func() {
 		err = subscriberSingleGroup.Close()
 		if err != nil {
-			logThis.Error("Error on close consumer: %v", err)
+			loggerSingleGroup.Error("Error on close: %v", err)
 		}
 	}()
 	// подключаемся к топику
 	err = subscriberSingleGroup.SubscribeTopic(topic)
 	if err != nil {
-		logThis.Error("Error on subscribe topic: %v", err)
+		loggerSingleGroup.Error("Error on subscribe to a topic: %v", err)
 	}
 
-	logThis.Info("Subscribed to topic: %s", topic)
+	loggerSingleGroup.Info("Subscribed to a topic: %s", topic)
 
 	/*
 		processBatchCb - callback функция для обработки сообщений в процессе их получения из Кафки
 	*/
-	processBatchCb := func(ctx context.Context, messages []*models.Message) error {
+	processBatchCbSingleGroup := func(ctx context.Context, messages []*models.Message) error {
 		/*
 			обработка сообщений, полученных из Кафка, например:
 			- сохранние данных в БД
@@ -101,15 +120,34 @@ func main() {
 			- и тп
 		*/
 		//пока просто выведем сообщения:
-		logThis.Info("Processing batch:\n%v", messages)
+		loggerSingleGroup.Info("Processing batch:\n%v", messages)
 
 		return nil
 	}
-	var wg sync.WaitGroup
-	wg.Add(1)
+	/*
+		processBatchCb - callback функция для обработки сообщений в процессе их получения из Кафки
+	*/
+	processBatchCbButchGroup := func(ctx context.Context, messages []*models.Message) error {
+		/*
+			обработка сообщений, полученных из Кафка, например:
+			- сохранние данных в БД
+			- отправка в какой-нибудь сервисы
+			- и тп
+		*/
+		//пока просто выведем сообщения:
+		loggerButchGroup.Info("Processing batch:\n%v", messages)
+
+		return nil
+	}
+
 	go func() {
 		defer wg.Done()
-		subscriberSingleGroup.Consume(ctx, processBatchCb)
+		subscriberSingleGroup.Consume(ctx, processBatchCbSingleGroup)
+	}()
+
+	go func() {
+		defer wg.Done()
+		subscriberButchGroup.Consume(ctx, processBatchCbButchGroup)
 	}()
 
 	//Обработка прерывания работы приложения, например, по CTR + c:

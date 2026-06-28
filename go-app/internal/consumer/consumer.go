@@ -124,11 +124,12 @@ func (c *Consumer[T]) Consume(ctx context.Context, processBatchCb func(context.C
 					break
 				}
 
-				sleepDuration = 0
-				sleepInterval = baseSleepInterval
-
 				switch readingEvent := event.(type) {
 				case *kafka.Message:
+
+					sleepDuration = 0
+					sleepInterval = baseSleepInterval
+
 					// Если есть событие с сообщением, десериализуем его:
 					var message *T
 					err = c.deserialize(readingEvent.Value, &message)
@@ -149,7 +150,7 @@ func (c *Consumer[T]) Consume(ctx context.Context, processBatchCb func(context.C
 						c.logger.Info("Headers: %v\n", readingEvent.Headers)
 					}
 				case kafka.Error:
-					c.logger.Error("%v: %v\n", readingEvent.Code(), readingEvent)
+					c.logger.Error("readingEvent.Code() = %v: readingEvent = %v, readingEvent.IsRetriable() = %v\n", readingEvent.Code(), readingEvent, readingEvent.IsRetriable())
 				default:
 					c.logger.Info("Ignored: %v\n", readingEvent)
 				}
