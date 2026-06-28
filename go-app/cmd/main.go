@@ -112,7 +112,7 @@ func main() {
 		subscriberSingleGroup.Consume(ctx, processBatchCb)
 	}()
 
-	//Обработка прерывания рабоыт приложения, например, по CTR + c:
+	//Обработка прерывания работы приложения, например, по CTR + c:
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan

@@ -2,8 +2,8 @@ package consumer
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/config"
@@ -68,6 +68,9 @@ func (c *Consumer[T]) SubscribeTopic(topic string) error {
 }
 
 func (c *Consumer[T]) Close() error {
+	if c.consumer != nil && c.consumer.IsClosed() {
+		return nil
+	}
 	return c.consumer.Close()
 }
 
@@ -78,6 +81,10 @@ ctx - для возможности отмены выполнения
 processBatchCb - обработка сообщений по мере их чтения
 */
 func (c *Consumer[T]) Consume(ctx context.Context, processBatchCb func(context.Context, []*T) error) {
+	baseSleepInterval := 1_000 * time.Millisecond
+	maxSleepInterval := baseSleepInterval * 10
+	sleepInterval := baseSleepInterval
+	sleepDuration := 0 * time.Millisecond
 	for {
 		select {
 		case <-ctx.Done():
@@ -85,81 +92,93 @@ func (c *Consumer[T]) Consume(ctx context.Context, processBatchCb func(context.C
 			return
 		default:
 			// Вычитываем сообщения в пачку
-			c.consumeProcess(ctx, processBatchCb)
-		}
-	}
-}
+			var err error
+			for len(c.batch) < c.batchSize {
 
-// consumeProcess - вычитываем сообщения в пачку
-func (c *Consumer[T]) consumeProcess(ctx context.Context, processBatchCb func(context.Context, []*T) error) {
-	// Вычитываем сообщения в пачку
-	var err error
-	for len(c.batch) < c.batchSize {
+				event := c.consumer.Poll(100)
+				// Если нет события, мы немедленно возвращаемся в начало цикла и проверяем ctx
+				if event == nil {
+					c.logger.Info("There is no message to read")
+					/*
+						Возможность отложеннго повтора забрать сообщения (retry & backoff-тактика).
+						Чтобы не пробовать в холостую забирать сообщения
+						Например:
+						- Если сообщений в принципе пока больше нет, то засыпаем на N сек/мс/наносек ...
+						- С каждой такой итерацией такой "счетчик" увеличивался бы по экспоненте (* 2, * 4, * 8, ...)
+						- Когда сообщения появятся, сбросить этот счетки
+						- break - чтобы внешний цикл for повторился
+					*/
+					if sleepDuration > 0 {
+						time.Sleep(sleepDuration)
+						sleepInterval *= 2
+						if sleepInterval > maxSleepInterval {
+							sleepInterval = maxSleepInterval
+						}
+					}
 
-		//TODO использовать b.c.Poll(100)?! Можно обработать разные ситуации, например, что просто пока нет сообщений
-		readMessage, err := c.consumer.ReadMessage(2 * time.Second)
-		if err != nil {
-			if kafkaErr, ok := errors.AsType[kafka.Error](err); ok && kafkaErr.Code() == kafka.ErrTimedOut {
-				break // Если таймаут — выходим из цикла с тем, что есть в c.batch
+					// Добавляем случайность ±20%
+					jitter := time.Duration(rand.Float64() * float64(sleepInterval) * 0.2)
+					sleepDuration = sleepInterval + jitter
+
+					c.logger.Info("Sleeping for %v", sleepDuration)
+					break
+				}
+
+				sleepDuration = 0
+				sleepInterval = baseSleepInterval
+
+				switch readingEvent := event.(type) {
+				case *kafka.Message:
+					// Если есть событие с сообщением, десериализуем его:
+					var message *T
+					err = c.deserialize(readingEvent.Value, &message)
+					if err != nil {
+						c.logger.Error("Consumer's deserialize error: %v", err)
+						// положить такие сообщения в DLQ топик
+						// идем за следующим сообщением:
+						continue
+					}
+
+					c.batch = append(c.batch, message)
+
+					logMsg := fmt.Sprintf("The consumer added data to the batch: %+v (Partition %d, Offset %d)", message, readingEvent.TopicPartition.Partition, readingEvent.TopicPartition.Offset)
+					c.logger.Info(logMsg)
+
+					// заголовки сообщения
+					if readingEvent.Headers != nil {
+						c.logger.Info("Headers: %v\n", readingEvent.Headers)
+					}
+				case kafka.Error:
+					c.logger.Error("%v: %v\n", readingEvent.Code(), readingEvent)
+				default:
+					c.logger.Info("Ignored: %v\n", readingEvent)
+				}
 			}
-			c.logger.Error("The Consumer's reading error: %v", err)
-			continue
-		}
 
-		if readMessage != nil {
-			/*
-				Если явно есть сообщения:
-				- десериализуем их
-				- запишем в пачку c.batch
-			*/
-			var message *T
-			if err = c.deserialize(readMessage.Value, &message); err != nil {
-				c.logger.Error("Consumer's deserialize error: %v", err)
-				// положить такие сообщения из в DLQ топик
-				continue
+			// Если пачка набрана — обрабатываем и коммитим смещение
+			if len(c.batch) > 0 {
+
+				if processBatchCb != nil {
+					err = processBatchCb(ctx, c.batch)
+					if err != nil {
+						c.logger.Error("processBatchCb error: %v", err)
+						/*
+							В задаче не было такого требованя по обработки подобных ситуаций. Опишу текстом:
+							- Можно добавить стратегию повторных попыток выполнения processBatchCb с backoff-тактикой.
+								- Если после попыток все равно есть ошибка, положить такие сообщения из c.batch в DLQ топик
+						*/
+					}
+				}
+
+				// Коммитим оффсет всей пачки
+				_, err = c.consumer.Commit()
+				if err != nil {
+					c.logger.Error("commit offset error: %v", err)
+				}
+
+				// Очищаем пачку
+				c.batch = c.batch[:0]
 			}
-			c.batch = append(c.batch, message)
-
-			logMsg := fmt.Sprintf("The consumer added data to the batch: %+v (Partition %d, Offset %d)", message, readMessage.TopicPartition.Partition, readMessage.TopicPartition.Offset)
-
-			c.logger.Info(logMsg)
 		}
 	}
-
-	// Если пачка набрана — обрабатываем и коммитим смещение
-	if len(c.batch) > 0 {
-
-		if processBatchCb != nil {
-			err = processBatchCb(ctx, c.batch)
-		}
-
-		if err != nil {
-			c.logger.Error("processBatchCb error: %v", err)
-			/*
-				В задаче не было такого требованя по обработки подобных ситуаций. Опишу текстом:
-				- Можно добавить стратегию повторных попыток выполнения processBatchCb с backoff-тактикой.
-					- Если после попыток все равно есть ошибка, положить такие сообщения из  c.batch в DLQ топик
-			*/
-		}
-		// Коммитим оффсет всей пачки
-		_, err = c.consumer.Commit()
-		if err != nil {
-			c.logger.Error("commit offset error: %v", err)
-		}
-
-		// Очищаем пачку
-		c.batch = c.batch[:0]
-		return
-	}
-
-	c.logger.Info("There is no message to read")
-	/*
-		Скорее всего, по-хорошему, тут надо добавить возможность отложеннго повтора забрать сообщения (retry & backoff-тактика).
-		Чтобы не пробовать в холостую забирать сообщения
-		Например:
-		- Если сообщений в принципе пока больше нет, то засыпаем на N сек/мс/наносек ...
-		- С каждой такой итерацией такой "счетчик" увеличивался бы по экспоненте (* 2, * 4, * 8, ...)
-		- Когда сообщения появятся, сбросить этот счетки
-		- вместо return, прописать break - чтобы внешний цикл for повторился
-	*/
 }
