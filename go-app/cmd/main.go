@@ -16,9 +16,8 @@ import (
 	"github.com/RAdevelop/ya_practicum-kafka-unit_1/go-app/internal/producer"
 )
 
-// TODO hardcode - вынести в конфиг?
 const (
-	topic       = "topic_unit_1"
+	topic       = "topic_unit_1" // TODO hardcode - вынести в конфиг?
 	singleGroup = "single-group" // TODO hardcode - вынести в конфиг?
 	batchGroup  = "batch-group"  // TODO hardcode - вынести в конфиг?
 )
@@ -159,76 +158,6 @@ func main() {
 	ctxCancel()
 	wg.Wait()
 	logThis.Info("App is closed")
-
-	return
-
-	/*
-		1 создать продюсера
-		Продюсер при создании:
-			получает конфиг
-			получает сериализатор
-
-	*/
-	/*
-		ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			// 1. Создаём продюсера (1 экземпляр)
-
-			// 2. Запускаем продюсера в отдельной горутине
-			var wg sync.WaitGroup
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				sendMessage(newProducer)
-			}()
-
-			// 3. Запускаем консьюмеров с уникальными group.id
-
-			singleConsumer, err := consumer.NewSingleConsumer(brokers, singleGroup, topic)
-			if err != nil {
-				logging.Error("NewSingleConsumer ошибка", err)
-				return
-			}
-
-			defer func() {
-				if errClose := singleConsumer.Close(); errClose != nil {
-					logging.Error("CRITICAL: Failed to close consumer gracefully: %v", errClose)
-				}
-			}()
-
-			batchConsumer, err := consumer.NewBatchConsumer(brokers, batchGroup, topic)
-			if err != nil {
-				logging.Error("NewBatchConsumer ошибка", err)
-				return
-			}
-			defer func() {
-				if errClose := batchConsumer.Close(); errClose != nil {
-					logging.Error("CRITICAL: Failed to close consumer gracefully: %v", errClose)
-				}
-			}()
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				singleConsumer.Consume(ctx)
-			}()
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				batchConsumer.Consume(ctx)
-			}()
-
-			// 4. Ожидаем сигнала завершения
-			sigChan := make(chan os.Signal, 1)
-			signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-			<-sigChan
-
-			logging.Info("Получен сигнал остановки...")
-			cancel()
-			wg.Wait()
-			logging.Success("Приложение завершено")*/
 }
 
 // generateMessage - генерируем сообщения в количестве countMsg
