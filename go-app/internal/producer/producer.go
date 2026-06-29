@@ -22,8 +22,9 @@ func NewProducer[T any](config config.Config, logger *logger.Logger, serializer 
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": config.Producer.BootstrapServers,
 		// Гарантия At Least Once
-		"acks":               config.Producer.Acks,              // Подтверждение от всех реплик
-		"retries":            config.Producer.Retries,           // Количество повторных попыток
+		"acks": config.Producer.Acks, // Подтверждение от всех реплик
+		// Количество повторных попыток, которые продюсер сделает, чтобы отправить сообщение, если при первой попытке произошла временная ошибка:
+		"retries":            config.Producer.Retries,
 		"retry.backoff.ms":   config.Producer.RetryBackoffMs,    // Пауза между попытками
 		"enable.idempotence": config.Producer.EnableIdempotence, // Идемпотентность (защита от дублей)
 		//Определяет, сколько времени клиент (продюсер или консьюмер) будет ждать установки TCP-соединения с брокером:

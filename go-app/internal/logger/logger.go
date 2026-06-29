@@ -25,7 +25,7 @@ func New(prefix string) *Logger {
 		prefix:  prefix,
 		info:    log.New(os.Stdout, "INFO: ", log.LstdFlags),
 		error:   log.New(os.Stderr, "ERROR: ", log.LstdFlags),
-		success: log.New(os.Stderr, "SUCCESS: ", log.LstdFlags),
+		success: log.New(os.Stdout, "SUCCESS: ", log.LstdFlags),
 	}
 }
 
@@ -50,5 +50,5 @@ func (l *Logger) getMsgWithFileLine(msg string) string {
 		file = parts[len(parts)-1]
 	}
 
-	return l.prefix + "in file: " + file + ":" + strconv.Itoa(line) + ": " + msg
+	return l.prefix + "in file: " + file + ":" + strconv.Itoa(line) + ": " + msg + "\n\n"
 }

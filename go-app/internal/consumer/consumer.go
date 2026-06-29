@@ -20,6 +20,7 @@ type Consumer[T any] struct {
 	batch       []*T
 }
 
+// NewConsumer - конструтор для консьюмера
 func NewConsumer[T any](config config.Config, logger *logger.Logger, deserialize func([]byte, any) error, groupID string, batchSize int) (*Consumer[T], error) {
 	if groupID == "" {
 		return nil, fmt.Errorf("invalid groupID (\"%s\"), must be not empty string", groupID)
@@ -67,6 +68,7 @@ func (c *Consumer[T]) SubscribeTopic(topic string) error {
 	return nil
 }
 
+// Close - закрываем консьюмера по мере необходимости (для экономии ресурсов)
 func (c *Consumer[T]) Close() error {
 	if c.consumer != nil && c.consumer.IsClosed() {
 		return nil
@@ -142,7 +144,7 @@ func (c *Consumer[T]) Consume(ctx context.Context, processBatchCb func(context.C
 
 					c.batch = append(c.batch, message)
 
-					logMsg := fmt.Sprintf("The consumer added data to the batch: %+v (Partition %d, Offset %d)", message, readingEvent.TopicPartition.Partition, readingEvent.TopicPartition.Offset)
+					logMsg := fmt.Sprintf("The consumer added data to the batch: %+v \n(Partition %d, Offset %d)\n\n", message, readingEvent.TopicPartition.Partition, readingEvent.TopicPartition.Offset)
 					c.logger.Info(logMsg)
 
 					// заголовки сообщения

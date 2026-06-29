@@ -31,6 +31,6 @@ type consumer struct {
 	GroupId          string `env:"GROUP_ID" envDefault:""`
 	AutoOffsetReset  string `env:"AUTO_OFFSET_RESET" envDefault:"earliest"`
 	EnableAutoCommit bool   `env:"ENABLE_AUTO_COMMIT" envDefault:"false"`
-	FetchMinBytes    int    `env:"FETCH_MIN_BYTES" envDefault:"1"`
+	FetchMinBytes    int    `env:"FETCH_MIN_BYTES" envDefault:"1024"`
 	FetchWaitMaxMs   int    `env:"FETCH_WAIT_MAX_MS" envDefault:"100"`
 }

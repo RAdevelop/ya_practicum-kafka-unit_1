@@ -124,7 +124,11 @@ func produceMessage(topic string, publisher *producer.Producer[models.Message], 
 // generateMessage - генерируем сообщения в количестве countMsg
 func generateMessage(produceChannel chan<- *models.Message, countMsg int) {
 	defer close(produceChannel)
-
+	/*
+	   Для ID сообщений лучше использовать UUID. Тогда при работе N шт продюсеров, и M штук консьюмеров они не будут:
+	   - генерировать (отправлять в кафку) одни и те же сообщения
+	   - читать из кафки одни и те же сообщения
+	*/
 	for i := 0; i < countMsg; i++ {
 		msg := &models.Message{
 			ID:      i,
@@ -163,7 +167,7 @@ func processBatchCbSingleGroup(ctx context.Context, logger *logger.Logger, messa
 		- и тп
 	*/
 	//пока просто выведем сообщения:
-	logger.Info("Processing batch:\n%v", messages)
+	logger.Info("Processing batch:\n%v\n\n", messages)
 
 	return nil
 }
@@ -177,7 +181,7 @@ func processBatchCbButchGroup(ctx context.Context, logger *logger.Logger, messag
 		- и тп
 	*/
 	//пока просто выведем сообщения:
-	logger.Info("Processing batch:\n%v", messages)
+	logger.Info("Processing batch:\n\n%v\n\n", messages)
 
 	return nil
 }
