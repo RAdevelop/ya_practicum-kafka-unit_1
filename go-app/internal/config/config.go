@@ -20,7 +20,7 @@ type producer struct {
 	Acks                           string `env:"ACKS" envDefault:"all"`
 	Retries                        int    `env:"RETRIES" envDefault:"10"`
 	RetryBackoffMs                 int    `env:"RETRY_BACKOFF_MS" envDefault:"100"`
-	EnableIdempotence              bool   `env:"ENABLE_IDEMPOTENCE" envDefault:"true"`
+	EnableIdempotence              bool   `env:"ENABLE_IDEMPOTENCE" envDefault:"false"`
 	FlushTimeoutMs                 int    `env:"FLUSH_TIMEOUT_MS" envDefault:"15000"`
 	SocketConnectionSetupTimeoutMs int    `env:"SOCKET_CONNECTION_SETUP_TIMEOUT_MS" envDefault:"10000"`
 	SocketTimeoutMs                int    `env:"SOCKET_TIMEOUT_MS" envDefault:"30000"`
